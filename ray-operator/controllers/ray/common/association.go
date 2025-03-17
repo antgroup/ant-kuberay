@@ -2,8 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -180,7 +178,15 @@ func GetRayClusterHeadPod(ctx context.Context, reader client.Reader, instance *r
 	}
 	if len(runtimePods.Items) > 1 {
 		logger.Info("Found multiple head pods", "count", len(runtimePods.Items), "filter labels", filterLabels)
-		return nil, fmt.Errorf("found multiple heads. filter labels %v", filterLabels)
+		for _, item := range runtimePods.Items {
+			for _, containerStatus := range item.Status.ContainerStatuses {
+				if containerStatus.Ready && *containerStatus.Started {
+					return &item, nil
+				}
+			}
+		}
+		logger.Info("Found head pod but no ready", "filter labels", filterLabels, "head pod", len(runtimePods.Items))
+		return nil, nil
 	}
 	return &runtimePods.Items[0], nil
 }

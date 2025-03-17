@@ -506,6 +506,9 @@ func CheckAllPodsRunning(ctx context.Context, runningPods corev1.PodList) bool {
 			log.Info("CheckAllPodsRunning: Pod is not running.", "podName", pod.Name, "pod Status.Phase", pod.Status.Phase)
 			return false
 		}
+		if strings.EqualFold(pod.Labels[RayNodeTypeLabelKey], string(rayv1.HeadNode)) {
+			continue
+		}
 		for _, cond := range pod.Status.Conditions {
 			if cond.Type == corev1.PodReady && cond.Status != corev1.ConditionTrue {
 				log.Info("CheckAllPodsRunning: Pod is not ready.", "podName", pod.Name, "pod Status.Conditions[PodReady]", cond)

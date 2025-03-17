@@ -37,6 +37,8 @@ type HeadGroupSpec struct {
 	HeadService *corev1.Service `json:"headService,omitempty"`
 	// EnableIngress indicates whether operator should create ingress object for head service or not.
 	EnableIngress *bool `json:"enableIngress,omitempty"`
+	// Replicas is the number of desired Pods for head group; when replicas  to make HA available.
+	Replicas *int32 `json:"replicas,omitempty"`
 	// RayStartParams are the params of the start command: node-manager-port, object-store-memory, ...
 	RayStartParams map[string]string `json:"rayStartParams"`
 	// Template is the exact pod template used in K8s depoyments, statefulsets, etc.

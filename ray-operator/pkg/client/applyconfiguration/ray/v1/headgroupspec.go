@@ -13,6 +13,7 @@ type HeadGroupSpecApplyConfiguration struct {
 	ServiceType    *v1.ServiceType                           `json:"serviceType,omitempty"`
 	HeadService    *v1.Service                               `json:"headService,omitempty"`
 	EnableIngress  *bool                                     `json:"enableIngress,omitempty"`
+	Replicas       *int32                                    `json:"replicas,omitempty"`
 	RayStartParams map[string]string                         `json:"rayStartParams,omitempty"`
 	Template       *corev1.PodTemplateSpecApplyConfiguration `json:"template,omitempty"`
 }
@@ -44,6 +45,14 @@ func (b *HeadGroupSpecApplyConfiguration) WithHeadService(value v1.Service) *Hea
 // If called multiple times, the EnableIngress field is set to the value of the last call.
 func (b *HeadGroupSpecApplyConfiguration) WithEnableIngress(value bool) *HeadGroupSpecApplyConfiguration {
 	b.EnableIngress = &value
+	return b
+}
+
+// WithReplicas sets the Replicas field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Replicas field is set to the value of the last call.
+func (b *HeadGroupSpecApplyConfiguration) WithReplicas(value int32) *HeadGroupSpecApplyConfiguration {
+	b.Replicas = &value
 	return b
 }
 
