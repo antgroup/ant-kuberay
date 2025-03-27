@@ -68,6 +68,7 @@ func main() {
 	var configFile string
 	var featureGates string
 	var enableBatchScheduler bool
+	var enableMultiHead bool
 	var batchScheduler string
 
 	// TODO: remove flag-based config once Configuration API graduates to v1.
@@ -93,6 +94,8 @@ func main() {
 		"Encoder to use for logging stdout. Valid values are 'json' and 'console'. Defaults to 'json'")
 	flag.BoolVar(&enableBatchScheduler, "enable-batch-scheduler", false,
 		"(Deprecated) Enable batch scheduler. Currently is volcano, which supports gang scheduler policy. Please use --batch-scheduler instead.")
+	flag.BoolVar(&enableMultiHead, "enable-multi-head", true,
+		"Enable multi head mode. Supports fast head HA policy.")
 	flag.StringVar(&batchScheduler, "batch-scheduler", "",
 		"Batch scheduler name, supported values are volcano and yunikorn.")
 	flag.StringVar(&configFile, "config", "", "Path to structured config file. Flags are ignored if config file is set.")
@@ -125,6 +128,7 @@ func main() {
 		config.LogFileEncoder = logFileEncoder
 		config.LogStdoutEncoder = logStdoutEncoder
 		config.EnableBatchScheduler = enableBatchScheduler
+		config.EnableMultiHead = enableMultiHead
 		config.BatchScheduler = batchScheduler
 		config.UseKubernetesProxy = useKubernetesProxy
 		config.DeleteRayJobAfterJobFinishes = os.Getenv(utils.DELETE_RAYJOB_CR_AFTER_JOB_FINISHES) == "true"

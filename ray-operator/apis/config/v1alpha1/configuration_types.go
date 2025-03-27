@@ -62,6 +62,9 @@ type Configuration struct {
 	// by Volcano to support gang scheduling.
 	EnableBatchScheduler bool `json:"enableBatchScheduler,omitempty"`
 
+	// EnableMultiHead enables the multiple heads for HA. Currently this is supported
+	EnableMultiHead bool `json:"enableMultiHead,omitempty"`
+
 	// UseKubernetesProxy indicates that the services/proxy and pods/proxy subresource should be used
 	// when connecting to the Ray Head node. This is useful when network policies disallow
 	// ingress traffic to the Ray cluster from other pods or Kuberay is running in a network without

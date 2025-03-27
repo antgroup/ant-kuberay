@@ -342,7 +342,7 @@ func BuildPod(ctx context.Context, podTemplateSpec corev1.PodTemplateSpec, rayNo
 			Kind:       "Pod",
 		},
 		ObjectMeta: podTemplateSpec.ObjectMeta,
-		Spec:       podTemplateSpec.Spec,
+		Spec:       *podTemplateSpec.Spec.DeepCopy(),
 	}
 
 	// Add /dev/shm volumeMount for the object store to avoid performance degradation.
@@ -654,6 +654,17 @@ func setContainerEnvVars(pod *corev1.Pod, rayNodeType rayv1.RayNodeType, rayStar
 		}
 		container.Env = append(container.Env, extraTagsEnv)
 	}
+
+	if !utils.EnvVarExists(utils.RAY_ENABLE_HEAD_HA, container.Env) && rayNodeType == rayv1.HeadNode {
+		// setting the RAY_ENABLE_HEAD_HA env var to true for head pod
+		// when multiple head pods exist, ray will decide which to become the leader,
+		// the other will be in standby mode and will trigger leader election when the leader fails.
+		if ftEnabled := pod.Annotations[utils.RayFTEnabledAnnotationKey] == "true"; ftEnabled {
+			rayEnableHeadHAEnv := corev1.EnvVar{Name: utils.RAY_ENABLE_HEAD_HA, Value: "true"}
+			container.Env = append(container.Env, rayEnableHeadHAEnv)
+		}
+	}
+
 	if !utils.EnvVarExists(utils.REDIS_PASSWORD, container.Env) {
 		// setting the REDIS_PASSWORD env var from the params
 		redisPasswordEnv := corev1.EnvVar{Name: utils.REDIS_PASSWORD}

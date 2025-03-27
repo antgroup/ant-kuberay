@@ -122,6 +122,7 @@ func NewReconciler(ctx context.Context, mgr manager.Manager, options RayClusterR
 		Recorder:          mgr.GetEventRecorderFor("raycluster-controller"),
 		BatchSchedulerMgr: schedulerMgr,
 		IsOpenShift:       isOpenShift,
+		enableMultiHead:   rayConfigs.EnableMultiHead,
 
 		rayClusterScaleExpectation: expectations.NewRayClusterScaleExpectation(mgr.GetClient()),
 		headSidecarContainers:      options.HeadSidecarContainers,
@@ -142,7 +143,8 @@ type RayClusterReconciler struct {
 	headSidecarContainers   []corev1.Container
 	workerSidecarContainers []corev1.Container
 
-	IsOpenShift bool
+	IsOpenShift     bool
+	enableMultiHead bool
 }
 
 type RayClusterReconcilerOptions struct {
@@ -701,10 +703,16 @@ func (r *RayClusterReconciler) reconcilePods(ctx context.Context, instance *rayv
 			return err
 		}
 	}
+
 	// Reconcile head Pod
+	// When the fault tolerance is disabled, set the replicas to 1.
+	if instance.Spec.HeadGroupSpec.Replicas == nil || !common.IsGCSFaultToleranceEnabled(*instance) {
+		instance.Spec.HeadGroupSpec.Replicas = ptr.To[int32](1)
+	}
+
 	if !r.rayClusterScaleExpectation.IsSatisfied(ctx, instance.Namespace, instance.Name, expectations.HeadGroup) {
 		logger.Info("reconcilePods", "Expectation", "NotSatisfiedHeadExpectations, reconcile head later")
-	} else if len(headPods.Items) == 1 {
+	} else if len(headPods.Items) == 1 && len(headPods.Items) == int(*instance.Spec.HeadGroupSpec.Replicas) {
 		headPod := headPods.Items[0]
 		logger.Info("reconcilePods", "Found 1 head Pod", headPod.Name, "Pod status", headPod.Status.Phase,
 			"Pod status reason", headPod.Status.Reason,
@@ -728,31 +736,54 @@ func (r *RayClusterReconciler) reconcilePods(ctx context.Context, instance *rayv
 		}
 	} else if len(headPods.Items) == 0 {
 		// Create head Pod if it does not exist.
-		logger.Info("reconcilePods: Found 0 head Pods; creating a head Pod for the RayCluster.")
-		common.CreatedClustersCounterInc(instance.Namespace)
-		if err := r.createHeadPod(ctx, *instance); err != nil {
-			common.FailedClustersCounterInc(instance.Namespace)
-			return errstd.Join(utils.ErrFailedCreateHeadPod, err)
-		}
-		common.SuccessfulClustersCounterInc(instance.Namespace)
-	} else if len(headPods.Items) > 1 {
-		logger.Info("reconcilePods: Found more than one head Pods; deleting extra head Pods.", "nHeadPods", len(headPods.Items))
-		// TODO (kevin85421): In-place update may not be a good idea.
-		itemLength := len(headPods.Items)
-		for index := 0; index < itemLength; index++ {
-			if headPods.Items[index].Status.Phase == corev1.PodRunning || headPods.Items[index].Status.Phase == corev1.PodPending {
-				// Remove the healthy pod at index i from the list of pods to delete
-				headPods.Items[index] = headPods.Items[len(headPods.Items)-1] // replace last element with the healthy head.
-				headPods.Items = headPods.Items[:len(headPods.Items)-1]       // Truncate slice.
-				itemLength--
+		logger.Info("reconcilePods: Found 0 head Pods; creating a head Pod for the RayCluster.", "replicas", *instance.Spec.HeadGroupSpec.Replicas, "items", len(headPods.Items), "enableMultiHead", r.enableMultiHead)
+		for i := 0; i < int(*instance.Spec.HeadGroupSpec.Replicas)-len(headPods.Items); i++ {
+			common.CreatedClustersCounterInc(instance.Namespace)
+			if err := r.createHeadPod(ctx, *instance); err != nil {
+				common.FailedClustersCounterInc(instance.Namespace)
+				logger.Error(err, "reconcilePods: failed to create head Pods.", "msg", errstd.Join(utils.ErrFailedCreateHeadPod, err))
+			}
+			common.SuccessfulClustersCounterInc(instance.Namespace)
+
+			if !r.enableMultiHead {
+				break
 			}
 		}
-		// delete all the extra head pod pods
-		for _, extraHeadPodToDelete := range headPods.Items {
-			if err := r.Delete(ctx, &extraHeadPodToDelete); err != nil {
-				return errstd.Join(utils.ErrFailedDeleteHeadPod, err)
+	} else if len(headPods.Items) > 0 {
+		if len(headPods.Items) < int(*instance.Spec.HeadGroupSpec.Replicas) {
+			for i := 0; i < int(*instance.Spec.HeadGroupSpec.Replicas)-len(headPods.Items); i++ {
+				if err := r.createHeadPod(ctx, *instance); err != nil {
+					common.FailedClustersCounterInc(instance.Namespace)
+					logger.Error(err, "reconcilePods: failed to create head Pods.", "msg", errstd.Join(utils.ErrFailedCreateHeadPod, err))
+				}
+
+				if !r.enableMultiHead {
+					break
+				}
 			}
-			r.rayClusterScaleExpectation.ExpectScalePod(extraHeadPodToDelete.Namespace, instance.Name, expectations.HeadGroup, extraHeadPodToDelete.Name, expectations.Delete)
+		} else if len(headPods.Items) > int(*instance.Spec.HeadGroupSpec.Replicas) {
+			logger.Info("reconcilePods: Found more than one head Pods; deleting extra head Pods.", "nHeadPods", len(headPods.Items))
+			// TODO (kevin85421): In-place update may not be a good idea.
+			itemLength := len(headPods.Items)
+			// if multi head is enabled, we need to delete the extra head pods.
+			if r.enableMultiHead {
+				itemLength = itemLength - int(*instance.Spec.HeadGroupSpec.Replicas)
+			}
+			for index := 0; index < itemLength; index++ {
+				if headPods.Items[index].Status.Phase == corev1.PodRunning || headPods.Items[index].Status.Phase == corev1.PodPending {
+					// Remove the healthy pod at index i from the list of pods to delete
+					headPods.Items[index] = headPods.Items[len(headPods.Items)-1] // replace last element with the healthy head.
+					headPods.Items = headPods.Items[:len(headPods.Items)-1]       // Truncate slice.
+					itemLength--
+				}
+			}
+			// delete all the extra head pod pods
+			for _, extraHeadPodToDelete := range headPods.Items {
+				if err := r.Delete(ctx, &extraHeadPodToDelete); err != nil {
+					return errstd.Join(utils.ErrFailedDeleteHeadPod, err)
+				}
+				r.rayClusterScaleExpectation.ExpectScalePod(extraHeadPodToDelete.Namespace, instance.Name, expectations.HeadGroup, extraHeadPodToDelete.Name, expectations.Delete)
+			}
 		}
 	}
 
@@ -1267,6 +1298,7 @@ func (r *RayClusterReconciler) calculateStatus(ctx context.Context, instance *ra
 	newInstance.Status.ObservedGeneration = newInstance.ObjectMeta.Generation
 
 	runtimePods := corev1.PodList{}
+	runtimeHeadPods := corev1.PodList{}
 	filterLabels := client.MatchingLabels{utils.RayClusterLabelKey: newInstance.Name}
 	if err := r.List(ctx, &runtimePods, client.InNamespace(newInstance.Namespace), filterLabels); err != nil {
 		return nil, err
@@ -1284,7 +1316,9 @@ func (r *RayClusterReconciler) calculateStatus(ctx context.Context, instance *ra
 	newInstance.Status.DesiredGPU = sumGPUs(totalResources)
 	newInstance.Status.DesiredTPU = totalResources[corev1.ResourceName("google.com/tpu")]
 
-	if utils.CheckAllPodsRunning(ctx, runtimePods) {
+	pod, reconcileErr := common.GetRayClusterHeadPod(ctx, r, instance)
+	runtimeHeadPods.Items = append(runtimeHeadPods.Items, *pod)
+	if utils.CheckAllPodsRunning(ctx, runtimePods) && utils.CheckAllPodsRunning(ctx, runtimeHeadPods) {
 		newInstance.Status.State = rayv1.Ready //nolint:staticcheck // https://github.com/ray-project/kuberay/pull/2288
 	}
 
