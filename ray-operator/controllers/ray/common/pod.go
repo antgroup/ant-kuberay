@@ -428,6 +428,10 @@ func BuildAutoscalerContainer(autoscalerImage string) corev1.Container {
 				},
 			},
 			{
+				Name:  utils.KUBERAY_OPERATOR_ADDRESS,
+				Value: os.Getenv(utils.KUBERAY_OPERATOR_ADDRESS),
+			},
+			{
 				Name: "RAY_CLUSTER_NAMESPACE",
 				ValueFrom: &corev1.EnvVarSource{
 					FieldRef: &corev1.ObjectFieldSelector{
@@ -653,6 +657,11 @@ func setContainerEnvVars(pod *corev1.Pod, rayNodeType rayv1.RayNodeType, rayStar
 			Value: fmt.Sprintf("kuberay_version=%s;kuberay_crd=%s", utils.KUBERAY_VERSION, string(creatorCRDType)),
 		}
 		container.Env = append(container.Env, extraTagsEnv)
+	}
+
+	if !utils.EnvVarExists(utils.KUBERAY_OPERATOR_ADDRESS, container.Env) {
+		kuberayOperatorAddressEnv := corev1.EnvVar{Name: utils.KUBERAY_OPERATOR_ADDRESS, Value: os.Getenv(utils.KUBERAY_OPERATOR_ADDRESS)}
+		container.Env = append(container.Env, kuberayOperatorAddressEnv)
 	}
 
 	if !utils.EnvVarExists(utils.RAY_ENABLE_HEAD_HA, container.Env) && rayNodeType == rayv1.HeadNode {

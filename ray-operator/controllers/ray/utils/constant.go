@@ -93,6 +93,7 @@ const (
 	HeadlessServiceSuffix = "headless-worker-svc"
 
 	// Use as container env variable
+	KUBERAY_OPERATOR_ADDRESS                = "KUBERAY_OPERATOR_ADDRESS"
 	RAY_CLUSTER_NAME                        = "RAY_CLUSTER_NAME"
 	RAY_IP                                  = "RAY_IP"
 	FQ_RAY_IP                               = "FQ_RAY_IP"

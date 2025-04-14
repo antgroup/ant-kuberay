@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	httpserver "github.com/ray-project/kuberay/ray-operator/restserver"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"os"
 	"strings"
 
@@ -253,6 +257,12 @@ func main() {
 	exitOnError(mgr.AddHealthzCheck("healthz", healthz.Ping), "unable to set up health check")
 	exitOnError(mgr.AddReadyzCheck("readyz", healthz.Ping), "unable to set up ready check")
 
+	go func() {
+		err := startHttpServer(ctx, *restConfig)
+		if err != nil {
+			exitOnError(err, "problem running HttpServer")
+		}
+	}()
 	setupLog.Info("starting manager")
 	exitOnError(mgr.Start(ctx), "problem running manager")
 }
@@ -302,4 +312,17 @@ func newLogEncoder(encoderType string) (zapcore.Encoder, error) {
 	}
 
 	return nil, fmt.Errorf("invalid encoder %q (must be 'json' or 'console')", encoderType)
+}
+
+// startHttpServer initializes and starts an HTTP server with the given context and REST configuration.
+// It creates a Kubernetes client using the provided configuration and uses it to start the HTTP server.
+// If the Kubernetes client cannot be created, the function logs an error and exits the program.
+func startHttpServer(ctx context.Context, cfg rest.Config) error {
+	setupLog.Info("starting HttpServer")
+	kubeClient, err := kubernetes.NewForConfig(&cfg)
+	if err != nil {
+		setupLog.Error(err, "unable to set up client config for httpServer")
+		os.Exit(1)
+	}
+	return httpserver.StartServer(ctx, &cfg, kubeClient)
 }

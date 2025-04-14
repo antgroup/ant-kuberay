@@ -13,7 +13,11 @@ spec:
     imagePullPolicy: IfNotPresent
     # Optionally specify the Autoscaler container's securityContext.
     securityContext: {}
-    env: []
+    env:
+      - name: IS_SIDECAR # Pass env var for the autoscaler v2.
+        value: "true"
+      - name: KUBERAY_HTTP_API_ENABLED # Pass env var for the autoscaler v2.
+        value: "1"
     envFrom: []
     resources:
       limits:
