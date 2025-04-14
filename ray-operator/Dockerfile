@@ -14,6 +14,8 @@ COPY main.go main.go
 COPY apis/ apis/
 COPY controllers/ controllers/
 COPY pkg/features pkg/features
+COPY pkg/client pkg/client
+COPY restserver/ restserver/
 
 # Build
 USER root

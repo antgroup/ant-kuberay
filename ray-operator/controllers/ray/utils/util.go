@@ -611,3 +611,23 @@ func ManagedByExternalController(controllerName *string) *string {
 	}
 	return nil
 }
+
+type JsonPatchData struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
+	Value interface{} `json:"value,omitempty"`
+}
+
+type jsonResponse struct {
+	Success bool        `json:"success"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data"`
+}
+
+func NewJsonResponse(success bool, message string, data interface{}) *jsonResponse {
+	return &jsonResponse{
+		Success: success,
+		Message: message,
+		Data:    data,
+	}
+}
