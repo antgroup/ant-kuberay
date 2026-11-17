@@ -1,8 +1,6 @@
 module github.com/ray-project/kuberay/ray-operator
 
-go 1.22.0
-
-toolchain go1.22.4
+go 1.23.0
 
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
 
@@ -79,7 +77,7 @@ require (
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8 // indirect
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/oauth2 v0.21.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/term v0.21.0 // indirect
